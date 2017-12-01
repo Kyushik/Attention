@@ -98,4 +98,4 @@ After 10 epoch, The training accuracy of LSTM was 93.52% and validation accuracy
 
 Sample images of attention result are as follows. 
 
-<img src="./Images/soft_result.png" width="800" alt="Combined Image" />
+<img src="./Images/Soft_result.png" width="800" alt="Combined Image" />
