@@ -45,7 +45,7 @@ You can download this modified MNIST data from this link
 
  This algorithm is from the paper [Show, Attend and Tell: Neural Image Caption Generation with Visual Attention](https://arxiv.org/abs/1502.03044). I studied attention from [Heuritech blog](https://blog.heuritech.com/2016/01/20/attention-mechanism/). 
 
-  The attention model for image captioning from paper is as follows. The image is from the Heuritech blog. 
+  The attention model for image captioning from paper is as follows. The image is from the [Heuritech blog](https://blog.heuritech.com/2016/01/20/attention-mechanism/). 
 
 <img src="./Images/Attention_for_Image_Caption.png" width="400" alt="Combined Image" />
 
@@ -72,7 +72,7 @@ def LSTM_cell(C_prev, h_prev, x_lstm, Wf, Wi, Wc, Wo, bf, bi, bc, bo):
 
  [Colah's blog post](http://colah.github.io/posts/2015-08-Understanding-LSTMs/) is very good for understanding LSTM and I studied this post to implement LSTM. 
 
- Structure image of soft attention model is as follows. Image is from Heuristic blog. 
+ Structure image of soft attention model is as follows. Image is from [Heuritech blog](https://blog.heuritech.com/2016/01/20/attention-mechanism/). 
 
 <img src="./Images/soft_attention.png" width="500" alt="Combined Image" />
 
@@ -96,6 +96,73 @@ def soft_attention(h_prev, a, Wa, Wh):
 
 After 10 epoch, The training accuracy of LSTM was 93.52% and validation accuracy was 94%.
 
-Sample images of attention result are as follows. 
+Sample images of soft attention result are as follows. 
 
 <img src="./Images/Soft_result.png" width="800" alt="Combined Image" />
+
+
+
+### Hard Attention
+
+ This algorithm is from the paper [Show, Attend and Tell: Neural Image Caption Generation with Visual Attention](https://arxiv.org/abs/1502.03044). Hard Attention architecture image from [Heuritech blog](https://blog.heuritech.com/2016/01/20/attention-mechanism/) is as follows. 
+
+<img src="./Images/hard_attention.png" width="500" alt="Combined Image" />
+
+ The random choice algorithm is `Monte-Carlo Sampling`. Therefore, I made a code for hard attention as follows. 
+
+```python
+# Hard Attention function
+def hard_attention(h_prev, a, Wa, Wh):
+    # h_prev: output from lstm of previous time step (shape: [batch_size, lstm_size])
+    # a: Image windows after CNN. List of convolution window images 
+    # (List len: number of windows, element shape: [batch_size, convolution flatten size])
+    
+    m_list = [tf.tanh(tf.matmul(a[i], Wa) + tf.matmul(h_prev, Wh)) for i in range(len(a))]
+    m_concat = tf.concat([m_list[i] for i in range(len(a))], axis = 1)
+    alpha = tf.nn.softmax(m_concat)
+    
+#   For Monte-Carlo Sampling
+    alpha_cumsum = tf.cumsum(alpha, axis = 1)
+    len_batch = tf.shape(alpha_cumsum)[0]
+    rand_prob = tf.random_uniform(shape = [len_batch, 1], minval = 0., maxval = 1.)
+    alpha_relu = tf.nn.relu(rand_prob - alpha_cumsum)
+    alpha_index = tf.count_nonzero(alpha_relu, 1)
+    alpha_hard  = tf.one_hot(alpha_index, len_stack)
+    
+    z_list = [tf.multiply(a[i], tf.slice(alpha_hard, (0, i), (-1, 1))) for i in range(len(a))]
+    z_stack = tf.stack(z_list, axis = 2)
+    z = tf.reduce_sum(z_stack, axis = 2)
+    
+    return alpha_hard, z, alpha
+```
+
+However, it did not work well, so I implemented the random choice part with `Argmax` and it worked quite well. The algorithm is as follows. 
+
+```python
+# Hard Attention function
+def hard_attention(h_prev, a, Wa, Wh):
+    # h_prev: output from lstm of previous time step (shape: [batch_size, lstm_size])
+    # a: Image windows after CNN. List of convolution window images 
+    # (List len: number of windows, element shape: [batch_size, convolution flatten size])
+    
+    m_list = [tf.tanh(tf.matmul(a[i], Wa) + tf.matmul(h_prev, Wh)) for i in range(len(a))]
+    m_concat = tf.concat([m_list[i] for i in range(len(a))], axis = 1)
+    alpha = tf.nn.softmax(m_concat)
+    alpha_argmax = tf.argmax(alpha, axis = 1)
+    alpha_hard  = tf.one_hot(alpha_argmax, len_stack)   
+    
+    z_list = [tf.multiply(a[i], tf.slice(alpha_hard, (0, i), (-1, 1))) for i in range(len(a))]
+    z_stack = tf.stack(z_list, axis = 2)
+    z = tf.reduce_sum(z_stack, axis = 2)
+    
+    return alpha_hard, z, alpha
+```
+
+After 10 epoch, The training accuracy of LSTM was 91.67% and validation accuracy was 91%.
+
+Sample images of hard attention result are as follows. 
+
+<img src="./Images/Hard_result.png" width="800" alt="Combined Image" />
+
+
+
