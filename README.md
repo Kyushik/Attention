@@ -82,19 +82,19 @@ def LSTM_cell(C_prev, h_prev, x_lstm, Wf, Wi, Wc, Wo, bf, bi, bc, bo):
 # Soft Attention function
 def soft_attention(h_prev, a, Wa, Wh):
     # h_prev: output from lstm of previous time step (shape: [batch_size, lstm_size])
-    # a: Image windows after CNN. List of convolution window images 
-    # (List len: number of windows, element shape: [batch_size, convolution flatten size])
-    
-    m_list = [tf.tanh(tf.matmul(a[i], Wa) + tf.matmul(h_prev, Wh)) for i in range(len(a))]
-    m_concat = tf.concat([m_list[i] for i in range(len(a))], axis = 1)
-    alpha = tf.nn.softmax(m_concat)
+    # a: Result of CNN [batch_size, conv_size * conv_size, channel_size] 
+
+    m_list = [tf.tanh(tf.matmul(a[i], Wa) + tf.matmul(h_prev, Wh)) for i in range(len(a))] 
+    m_concat = tf.concat([m_list[i] for i in range(len(a))], axis = 1)     
+    alpha = tf.nn.softmax(m_concat) 
     z_list = [tf.multiply(a[i], tf.slice(alpha, (0, i), (-1, 1))) for i in range(len(a))]
     z_stack = tf.stack(z_list, axis = 2)
     z = tf.reduce_sum(z_stack, axis = 2)
+
     return alpha, z
 ```
 
-After 10 epoch, The training accuracy of LSTM was 93.52% and validation accuracy was 94%.
+After 10 epoch, The training accuracy of LSTM was 94% and validation accuracy was 97%.
 
 Sample images of soft attention result are as follows. 
 
@@ -114,51 +114,30 @@ Sample images of soft attention result are as follows.
 # Hard Attention function
 def hard_attention(h_prev, a, Wa, Wh):
     # h_prev: output from lstm of previous time step (shape: [batch_size, lstm_size])
-    # a: Image windows after CNN. List of convolution window images 
-    # (List len: number of windows, element shape: [batch_size, convolution flatten size])
+    # a: Result of CNN [batch_size, conv_size * conv_size, channel_size] 
+
+    m_list = [tf.tanh(tf.matmul(a[i], Wa) + tf.matmul(h_prev, Wh)) for i in range(len(a))] 
+    m_concat = tf.concat([m_list[i] for i in range(len(a))], axis = 1)     
+    alpha = tf.nn.softmax(m_concat) 
     
-    m_list = [tf.tanh(tf.matmul(a[i], Wa) + tf.matmul(h_prev, Wh)) for i in range(len(a))]
-    m_concat = tf.concat([m_list[i] for i in range(len(a))], axis = 1)
-    alpha = tf.nn.softmax(m_concat)
-    
-#   For Monte-Carlo Sampling
+    #For Monte-Carlo Sampling
     alpha_cumsum = tf.cumsum(alpha, axis = 1)
     len_batch = tf.shape(alpha_cumsum)[0]
     rand_prob = tf.random_uniform(shape = [len_batch, 1], minval = 0., maxval = 1.)
     alpha_relu = tf.nn.relu(rand_prob - alpha_cumsum)
     alpha_index = tf.count_nonzero(alpha_relu, 1)
-    alpha_hard  = tf.one_hot(alpha_index, len_stack)
-    
+    alpha_hard  = tf.one_hot(alpha_index, len(a))
+
     z_list = [tf.multiply(a[i], tf.slice(alpha_hard, (0, i), (-1, 1))) for i in range(len(a))]
     z_stack = tf.stack(z_list, axis = 2)
     z = tf.reduce_sum(z_stack, axis = 2)
-    
-    return alpha_hard, z, alpha
+
+    return alpha, z
 ```
 
-However, it did not work well, so I implemented the random choice part with `Argmax` and it worked quite well. The algorithm is as follows. 
 
-```python
-# Hard Attention function
-def hard_attention(h_prev, a, Wa, Wh):
-    # h_prev: output from lstm of previous time step (shape: [batch_size, lstm_size])
-    # a: Image windows after CNN. List of convolution window images 
-    # (List len: number of windows, element shape: [batch_size, convolution flatten size])
-    
-    m_list = [tf.tanh(tf.matmul(a[i], Wa) + tf.matmul(h_prev, Wh)) for i in range(len(a))]
-    m_concat = tf.concat([m_list[i] for i in range(len(a))], axis = 1)
-    alpha = tf.nn.softmax(m_concat)
-    alpha_argmax = tf.argmax(alpha, axis = 1)
-    alpha_hard  = tf.one_hot(alpha_argmax, len_stack)   
-    
-    z_list = [tf.multiply(a[i], tf.slice(alpha_hard, (0, i), (-1, 1))) for i in range(len(a))]
-    z_stack = tf.stack(z_list, axis = 2)
-    z = tf.reduce_sum(z_stack, axis = 2)
-    
-    return alpha_hard, z, alpha
-```
 
-After 10 epoch, The training accuracy of LSTM was 91.67% and validation accuracy was 91%.
+After 10 epoch, The training accuracy of LSTM was only 30% and validation accuracy was 33%.
 
 Sample images of hard attention result are as follows. 
 
